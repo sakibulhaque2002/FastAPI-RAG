@@ -8,18 +8,21 @@ import numpy as np
 import time
 from redis.commands.search.query import Query
 from contextlib import asynccontextmanager
+from utils.llm_client import ask_llm
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("🚀 Initializing PDF + Redis setup...")
 
     # Startup code
-    full_text = load_pdf_text(PDF_PATH)
-    chunks = chunk_text(full_text, CHUNK_SIZE, CHUNK_OVERLAP)
-    embeddings = get_embeddings(chunks)
-    vector_dim = len(embeddings[0])
+
 
     if not index_exists():
+        full_text = load_pdf_text(PDF_PATH)
+        chunks = chunk_text(full_text, CHUNK_SIZE, CHUNK_OVERLAP)
+        embeddings = get_embeddings(chunks)
+        vector_dim = len(embeddings[0])
+
         create_index(vector_dim)
         start = time.time()
         for i, emb in enumerate(embeddings):
@@ -41,7 +44,9 @@ app = FastAPI(lifespan=lifespan)
 
 @app.post("/query")
 def query_pdf(request: QueryRequest):
-    q_emb = get_embeddings([request.query])[0]
+    query = request.query
+
+    q_emb = get_embeddings([query])[0]
     q_vector = np.array(q_emb, dtype=np.float16).tobytes()
 
     q = Query(f"*=>[KNN {TOP_K} @embedding $vector AS score]") \
@@ -54,21 +59,38 @@ def query_pdf(request: QueryRequest):
     # Extract docs for reranking
     documents = [doc.content for doc in results.docs]
 
-    # Perform reranking
-    rerank_scores = rerank(request.query, documents)
-    reranked_results = sorted(
-        zip(results.docs, rerank_scores),
-        key=lambda x: x[1],
-        reverse=True
-    )
+    context = "\n\n".join(documents)
 
-    response = []
-    for rank, (doc, score) in enumerate(reranked_results, start=1):
-        response.append({
-            "rank": rank,
-            "redis_score": float(doc.score),
-            "rerank_score": float(score),
-            "content": doc.content
-        })
+    prompt = f"""
+    Answer the question naturally in your own words **only** from the context below.
+    If you don't find the answer, then say "The document does not contain this information."
 
-    return {"query": request.query, "results": response}
+    Context:
+    {context}
+
+    Question: {query}
+    Answer:
+    """
+
+    answer = ask_llm(prompt)
+
+    return {"answer": answer}
+
+    # # Perform reranking
+    # rerank_scores = rerank(request.query, documents)
+    # reranked_results = sorted(
+    #     zip(results.docs, rerank_scores),
+    #     key=lambda x: x[1],
+    #     reverse=True
+    # )
+    #
+    # response = []
+    # for rank, (doc, score) in enumerate(reranked_results, start=1):
+    #     response.append({
+    #         "rank": rank,
+    #         "redis_score": float(doc.score),
+    #         "rerank_score": float(score),
+    #         "content": doc.content
+    #     })
+    #
+    # return {"query": request.query, "results": response}

@@ -1,28 +1,31 @@
+# tests/tester.py
 import json
-from numpy.linalg import norm
-import numpy as np
 import requests
-from bert_score import score
-from utils.embed import get_embeddings
+from adapters.cosine_adapter import CosineAdapter
+from adapters.bertscore_adapter import BERTScoreAdapter
 
-# -----------------------------
-# Load test cases
-# -----------------------------
 with open("test_cases.json", "r", encoding="utf-8") as f:
     test_cases = json.load(f)
 
-def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
-    return float(np.dot(a, b) / (norm(a) * norm(b)))
+# -----------------------------
+# Choose your similarity metric
+# -----------------------------
+METRIC = "cosine"  # options: "cosine", "bertscore"
 
-THRESHOLD_COSINE = 0.80
-THRESHOLD_BERTSCORE = 0.85  # F1 threshold for BERTScore
+if METRIC.lower() == "cosine":
+    similarity_adapter = CosineAdapter()
+elif METRIC.lower() == "bertscore":
+    similarity_adapter = BERTScoreAdapter()
+else:
+    raise ValueError("Unsupported metric")
 
+# -----------------------------
+# Run tests
+# -----------------------------
 def run_tests():
     total = len(test_cases)
     passed = 0
     failed = 0
-
-    print("\n========== Chatbot NLP Test Results ==========\n")
 
     for case in test_cases:
         query = case["query"]
@@ -42,38 +45,21 @@ def run_tests():
             failed += 1
             continue
 
-        # -----------------------------
-        # Cosine similarity
-        # -----------------------------
-        actual_emb, expected_emb = get_embeddings([actual, expected])
-        cos_sim = cosine_similarity(actual_emb, expected_emb)
+        sim = similarity_adapter.compute(actual, expected)
+        status = "PASS" if similarity_adapter.check_pass(actual, expected) else "FAIL"
 
-        # -----------------------------
-        # BERTScore
-        # -----------------------------
-        P, R, F1 = score([actual], [expected], lang="en", rescale_with_baseline=True)
-        bert_sim = F1[0].item()
-
-        # -----------------------------
-        # Decide pass/fail
-        # -----------------------------
-        # Both metrics must exceed thresholds to PASS
-        if cos_sim >= THRESHOLD_COSINE and bert_sim >= THRESHOLD_BERTSCORE:
-            status = "PASS"
-            passed += 1
-        else:
-            status = "FAIL"
-            failed += 1
-
-        # Print detailed result
         print(f"Query: {query}")
         print(f"Expected: {expected}")
         print(f"Actual: {actual}")
-        print(f"Cosine Similarity: {cos_sim:.3f}")
-        print(f"BERTScore F1: {bert_sim:.3f} | Result: {status}\n")
+        print(f"Similarity: {sim:.3f} | Result: {status}\n")
         print("-" * 50)
 
-    # Final summary
+        if status == "PASS":
+            passed += 1
+        else:
+            failed += 1
+
+    # Summary
     print("\n=========== SUMMARY ===========")
     print(f"Total Tests : {total}")
     print(f"Passed      : {passed}")

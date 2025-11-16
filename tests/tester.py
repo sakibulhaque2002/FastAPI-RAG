@@ -3,6 +3,7 @@ import json
 import requests
 from adapters.cosine_adapter import CosineAdapter
 from adapters.bertscore_adapter import BERTScoreAdapter
+from adapters.gemini_adapter import GeminiAdapter
 
 with open("test_cases.json", "r", encoding="utf-8") as f:
     test_cases = json.load(f)
@@ -10,9 +11,11 @@ with open("test_cases.json", "r", encoding="utf-8") as f:
 # -----------------------------
 # Choose your similarity metric
 # -----------------------------
-METRIC = "cosine"  # options: "cosine", "bertscore"
+METRIC = "gemini"
 
-if METRIC.lower() == "cosine":
+if METRIC.lower() == "gemini":
+    similarity_adapter = GeminiAdapter()
+elif METRIC.lower() == "cosine":
     similarity_adapter = CosineAdapter()
 elif METRIC.lower() == "bertscore":
     similarity_adapter = BERTScoreAdapter()

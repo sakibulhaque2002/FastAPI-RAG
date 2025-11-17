@@ -15,15 +15,17 @@ async def lifespan(app: FastAPI):
     print("🚀 Initializing PDF + Redis setup...")
 
     # Startup code
-
-
     if not index_exists():
         full_text = load_pdf_text(PDF_PATH)
+        print("✅ Loaded PDF")
         chunks = chunk_text(full_text, CHUNK_SIZE, CHUNK_OVERLAP)
+        print("✅ Loaded Chunks")
         embeddings = get_embeddings(chunks)
+        print("✅ Loaded Embeddings")
         vector_dim = len(embeddings[0])
 
         create_index(vector_dim)
+        print("✅ Created Index")
         start = time.time()
         for i, emb in enumerate(embeddings):
             r.hset(f"chunk:{i}", mapping={
@@ -41,6 +43,7 @@ async def lifespan(app: FastAPI):
 
 # Initialize app with lifespan
 app = FastAPI(lifespan=lifespan)
+
 
 @app.post("/query")
 def query_pdf(request: QueryRequest):
@@ -75,22 +78,3 @@ def query_pdf(request: QueryRequest):
     answer = ask_llm(prompt)
 
     return {"answer": answer}
-
-    # # Perform reranking
-    # rerank_scores = rerank(request.query, documents)
-    # reranked_results = sorted(
-    #     zip(results.docs, rerank_scores),
-    #     key=lambda x: x[1],
-    #     reverse=True
-    # )
-    #
-    # response = []
-    # for rank, (doc, score) in enumerate(reranked_results, start=1):
-    #     response.append({
-    #         "rank": rank,
-    #         "redis_score": float(doc.score),
-    #         "rerank_score": float(score),
-    #         "content": doc.content
-    #     })
-    #
-    # return {"query": request.query, "results": response}

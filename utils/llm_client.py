@@ -1,7 +1,6 @@
 import os
 import requests
-
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+from config import OPENROUTER_API_KEY
 
 def ask_llm(prompt, model="@preset/botium-test"):
     url = "https://openrouter.ai/api/v1/chat/completions"

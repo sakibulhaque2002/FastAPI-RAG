@@ -1,3 +1,6 @@
+import os
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+
 REDIS_HOST = "localhost"
 REDIS_PORT = 6380
 REDIS_INDEX = "pdf_chunked_idx"
